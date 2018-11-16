@@ -4,50 +4,54 @@ KStarCoin 관련 API
 const express = require('express');
 const router = express.Router();
 
-const deployer = require('../helpers/deployer');
-const compiler = require('../helpers/compiler');
+const controller = require('../controllers/kstar-coin');
 
 // totalSupply
-router.get('/totalsupply', (req, res) => {
-  res.send('totalSupply');
+router.get('/total-supply', async (req, res) => {
+  const totalSupply = await controller.getTotalSupply();
+  res.send(`totalSupply : ${totalSupply}`);
 });
 
 // balanceOf
-router.get('/balanceof/:address', (req, res) => {
-  res.send(req.params.address);
+router.get('/balance-of/:userAddress', async (req, res) => {
+  const balance = await controller.getBalanceOf(req.params.userAddress);
+  res.send(`Balance of ${req.params.userAddress} : ${balance}`);
 });
 
 // allowance
-router.get('/allowance/:owner/:spender', (req, res) => {
-  res.send(`owner : ${req.params.owner}, spender: ${req.params.spender}`);
+router.get('/allowance/:owner/:spender', async (req, res) => {
+  const allowance = await controller.getAllowance(req.params.owner, req.params.spender);
+  res.send(`${req.params.owner} allow ${req.params.spender} to transfer ${allowance}`);
 });
 
 // compile
 router.post('/compile', (req, res) => {
-  compiler('KStarCoin');
+  controller.compile('KStarCoin');
   res.send('KStarCoin is compiled');
 });
 
 // deploy
-router.post('/deploy', (req, res) => {
-  deployer('KStarCoin').then(result => {
-    res.send(`result : ${result}`);
-  });
+router.post('/deploy', async (req, res) => {
+  const contractAddress = await controller.deploy()
+  res.send(`Deployed contract address : ${contractAddress}`);
 });
 
 // transfer
-router.post('/transfer', (req, res) => {
-  res.send(`to : ${req.body.to}, value : ${req.body.value}`);
+router.post('/transfer', async (req, res) => {
+  const txHash = await controller.transfer(req.body.to, req.body.value);
+  res.send(`Transaction Hash : ${txHash}`);
 });
 
 // transferFrom
-router.post('/transferfrom', (req, res) => {
-  res.send(`from: ${req.body.from}, to : ${req.body.to}, value : ${req.body.value}`);
+router.post('/transfer-from', async (req, res) => {
+  const txHash = await controller.transferFrom(req.body.from, req.body.to, req.body.value);
+  res.send(`Transaction Hash : ${txHash}`);
 });
 
 // approve
-router.post('/approve', (req, res) => {
-  res.send(`spender : ${req.body.spender}, value : ${req.body.value}`);
+router.post('/approve', async (req, res) => {
+  const txHash = await controller.approve(req.body.spender, req.body.value);
+  res.send(`Transaction Hash : ${txHash}`);
 });
 
 module.exports = router
