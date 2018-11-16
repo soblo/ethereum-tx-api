@@ -1,0 +1,22 @@
+{
+  "name": "ethereum-tx-api",
+  "version": "0.0.1",
+  "description": "API Server for Ethereum transaction",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "API",
+    "Ethereum"
+  ],
+  "author": "modolee",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.18.3",
+    "express": "^4.16.4",
+    "solc": "^0.4.25",
+    "truffle-hdwallet-provider": "0.0.6",
+    "web3": "^1.0.0-beta.36"
+  }
+}
