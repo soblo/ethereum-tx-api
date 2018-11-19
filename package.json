@@ -2,8 +2,9 @@
   "name": "ethereum-tx-api",
   "version": "0.0.1",
   "description": "API Server for Ethereum transaction",
-  "main": "server.js",
+  "main": "app.js",
   "scripts": {
+    "devstart": "nodemon app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
