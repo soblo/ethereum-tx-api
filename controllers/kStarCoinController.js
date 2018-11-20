@@ -61,7 +61,7 @@ class KStarCoinController {
     const accounts = await model.getAccounts();
     const estimatedGas = await model.estimateGasTransferFrom(from, to, value);
     const gasLimit = Math.floor(estimatedGas * GAS_LIMIT_MULTIPLE);
-    const result = await model.transferFrom(from, to, value);
+    const result = await model.transferFrom(from, to, value, gasLimit);
 
     res.send(`Transaction Hash : ${result.transactionHash}`);
   }
@@ -73,11 +73,11 @@ class KStarCoinController {
     const accounts = await model.getAccounts();
     const estimatedGas = await model.estimateGasApprove(to, value);
     const gasLimit = Math.floor(estimatedGas * GAS_LIMIT_MULTIPLE);
-    const result = await model.approve(accounts[0], to, value);
+    const result = await model.approve(accounts[0], to, value, gasLimit);
 
     res.send(`Transaction Hash : ${result.transactionHash}`);
   }
-  
+
 }
 
 module.exports = KStarCoinController;
