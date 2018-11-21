@@ -4,10 +4,10 @@
   "description": "API Server for Ethereum transaction",
   "main": "app.js",
   "scripts": {
-    "devstart" : "nodemon app.js",
-    "compile" : "node contracts/compile.js",
-    "deploy" : "node contracts/deploy.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "devstart": "nodemon app.js",
+    "compile": "node contracts/compile.js",
+    "deploy": "node contracts/deploy.js",
+    "test": "mocha"
   },
   "keywords": [
     "API",
@@ -16,11 +16,14 @@
   "author": "modolee_captinchain",
   "license": "ISC",
   "dependencies": {
+    "assert": "^1.4.1",
     "body-parser": "^1.18.3",
     "dotenv": "^6.1.0",
     "express": "^4.16.4",
     "fs-extra": "^7.0.1",
+    "ganache-cli": "^6.2.1",
     "lodash": "^4.17.11",
+    "mocha": "^5.2.0",
     "path": "^0.12.7",
     "solc": "^0.4.25",
     "truffle-hdwallet-provider": "0.0.6",
