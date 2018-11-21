@@ -16,7 +16,7 @@ class ContractBuilder {
     fs.writeFileSync(outputPath, JSON.stringify(outputData, null, ' '), 'utf8');
   }
 
-  static async deploy(contractName) {
+  static async deploy(contractName, args) {
     const contractPath = path.resolve('build', `${contractName}.json`);
     const contractData = fs.readFileSync(contractPath, 'utf8');
     const contractObj = JSON.parse(contractData);
@@ -26,7 +26,7 @@ class ContractBuilder {
       .Contract(JSON.parse(contractObj.interface))
       .deploy({
         data: '0x' + contractObj.bytecode,
-        arguments: []
+        arguments: args
       })
       .send({ from: accounts[0] });
 
