@@ -1,8 +1,9 @@
 const express = require('express');
 const routes = require('./routes/index.js');
 const app = express();
-const port = 4601;
+const PORT = 4601;
+const HOST = '0.0.0.0';
 
 routes(app);
 
-app.listen(port, () => console.log(`Example app listening on port ${port}!`));
+app.listen(PORT, HOST, () => console.log(`App listening on ${HOST}:${PORT}`));
