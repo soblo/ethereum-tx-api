@@ -6,7 +6,7 @@ pragma solidity >=0.4.25 <=0.5.0;
  * @dev see http://www.kstarlive.com
  * Additional Requirement & remaining implementaion 2018.11.28
  * 1. ERC 721고려
- * 2. 수수료 정산(오라클라이즈)
+ * 2. 수수료 정산(via the KyberNetwork API with KSC/BTC or KSC/ETH etc...)
  * 3. Code Refactoring for gas reduction
  * 4. Controller가 업데이트 되었을 때 유저 지갑에 Owner 전환에 대한 업그레이드 코드
  */
