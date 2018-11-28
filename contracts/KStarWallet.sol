@@ -323,7 +323,6 @@ contract KStarWalletController {
     )
         public
         isValidAndOwner 
-        tokenIsNotZeroAddress(_tokenSymbol)
         returns
         (bool)
     {

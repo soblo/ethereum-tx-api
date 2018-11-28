@@ -15,11 +15,9 @@ const _ = require('lodash');
 
     const contractName = process.argv[2];
     const arguments = process.argv[3] ? process.argv[3].split(',') : [];
-
     console.log(arguments);
-
     const address = await ContractBuilder.deploy(contractName, arguments);
-
+    
     fs.appendFileSync(
         path.resolve(buildPath, 'DeployedHistory'),
         JSON.stringify({contractName : contractName, args : arguments, contractAddr : address, createDt : new Date().toString()}) +'\n'
