@@ -2,7 +2,7 @@ pragma solidity >=0.4.25 <=0.5.0;
 
 /**
  * @author Lee
- * @title KStarWallet V0.4
+ * @title KStarWallet V0.3
  * @dev see http://www.kstarlive.com
  * Additional Requirement & remaining implementaion 2018.11.28
  * 1. ERC 721고려
