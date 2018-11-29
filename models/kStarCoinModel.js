@@ -1,5 +1,5 @@
 const contractName = 'KStarCoin';
-const contractAddress = '0x1957C2e15cC6eb07A2A2c25D6e9458dC477a500f';
+const contractAddress = '0xD358d4068d735fDC18fd4b2b1a8a1B8dD7a50C8C'; // rinkeby KStarCoin contract
 const ContractModel = require('./contractModel');
 
 class KStarCoinModel extends ContractModel {
