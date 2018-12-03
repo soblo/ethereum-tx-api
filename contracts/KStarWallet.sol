@@ -7,8 +7,8 @@ pragma solidity >=0.4.25 <=0.5.0;
  * Additional Requirement & remaining implementaion 2018.11.28
  * 1. ERC 721고려
  * 2. 수수료 정산(via the KyberNetwork API with KSC/BTC or KSC/ETH etc...)
- * 3. Code Refactoring for gas reduction
- * 4. Controller가 업데이트 되었을 때 유저 지갑에 Owner 전환에 대한 업그레이드 코드
+ * 3. 유저 지갑에 Owner 전환에 대한 업그레이드 코드
+ * 4. Controller 역할을 Factory의 역할로 바꾸고 Wallet의 ERC20 모든 기능을 가져간다 (향후 dApp 서비스 연계를 위해)
  */
 
 /**
@@ -604,7 +604,7 @@ contract KStarWallet is Ownable {
     /**
      * 이더를 입금하기 위한 fallback 함수 Controller를 통해서만 접근 가능함
      */  
-    function () public payable onlyOwner {
+    function () public payable {
         require(msg.value > 0);
     }
    
