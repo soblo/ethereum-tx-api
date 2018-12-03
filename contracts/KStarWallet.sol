@@ -2,13 +2,10 @@ pragma solidity >=0.4.25 <=0.5.0;
 
 /**
  * @author Lee
- * @title KStarWallet V0.3
+ * @title KStarWallet V0.4
  * @dev see http://www.kstarlive.com
- * Additional Requirement & remaining implementaion 2018.11.28
- * 1. ERC 721고려
- * 2. 수수료 정산(via the KyberNetwork API with KSC/BTC or KSC/ETH etc...)
- * 3. 유저 지갑에 Owner 전환에 대한 업그레이드 코드
- * 4. Controller 역할을 Factory의 역할로 바꾸고 Wallet의 ERC20 모든 기능을 가져간다 (향후 dApp 서비스 연계를 위해)
+ * Additional Requirement & remaining implementaion 2018.12.03
+ * 1. 수수료 정산(via the KyberNetwork API with KSC/BTC or KSC/ETH etc...)
  */
 
 /**
@@ -45,169 +42,57 @@ library SafeMath {
 }
  
 /**
- * @title Ownable
- * @dev Ownership of the each user's KStarWallet
- */
-contract Ownable {
-  address public owner;
-
-  event OwnershipRenounced(address indexed previousOwner);
-  event OwnershipTransferred(
-    address indexed previousOwner,
-    address indexed newOwner
-  );
-
-  constructor() public {
-    owner = msg.sender;
-  }
-
-  modifier onlyOwner() {
-    require(msg.sender == owner);
-    _;
-  }
-
-  function transferOwnership(address newOwner) public onlyOwner {
-    require(newOwner != address(0));
-    emit OwnershipTransferred(owner, newOwner);
-    owner = newOwner;
-  }
-
-  function renounceOwnership() public onlyOwner {
-    emit OwnershipRenounced(owner);
-    owner = address(0);
-  }
-}
- 
-/**
  * @title MultiOwnable
  * @dev Ownership of the each user's KStarWallet
  */
 contract MultiOwnable {
     
-    using SafeMath for uint256;
+  mapping(address => bool) internal owners;
+  address internal privilegedUser;
+  
+  event OwnershipRenounced(
+      address indexed previousUser,
+      address indexed newUser
+  );
 
-    address public root; // 혹시 몰라 준비해둔 superOwner 의 백업. 하드웨어 월렛 주소로 세팅할 예정.
-    address public superOwner;
-    mapping (address => bool) public owners;
-    address[] public ownerList;
+  constructor() public {
+    owners[msg.sender] = true;
+  }
 
-    // for changeSuperOwnerByDAO
-    // mapping(address => mapping (address => bool)) public preSuperOwnerMap;
-    mapping(address => address) public candidateSuperOwnerMap;
+  modifier privilegedOwner() {
+    require(owners[msg.sender] || privilegedUser == msg.sender);
+    _;
+  }
+  
+  modifier onlyMultiOwner() {
+    require(owners[msg.sender]);
+    _;
+  }
+  
+  function addOwner(address _newOwner) public onlyMultiOwner {
+      require(_newOwner != address(0) && !owners[_newOwner]);
+      
+      owners[_newOwner] = true;
+  }
 
+  function removeOwner(address _owner) public onlyMultiOwner {
+    require(_owner != address(0)  && owners[msg.sender]);
+    owners[_owner] = false;
+  }
 
-    event ChangedRoot(address newRoot);
-    event ChangedSuperOwner(address newSuperOwner);
-    event AddedNewOwner(address newOwner);
-    event DeletedOwner(address deletedOwner);
-
-    constructor() public {
-        root = msg.sender;
-        superOwner = msg.sender;
-        owners[root] = true;
-
-        ownerList.push(msg.sender);
-
-    }
-
-    modifier onlyRoot() {
-        require(msg.sender == root, "Root privilege is required.");
-        _;
-    }
-
-    modifier onlySuperOwner() {
-        require(msg.sender == superOwner, "SuperOwner priviledge is required.");
-        _;
-    }
-
-    modifier onlyOwner() {
-        require(owners[msg.sender], "Owner priviledge is required.");
-        _;
-    }
-
-    /**
-     * @dev root 교체 (root 는 root 와 superOwner 를 교체할 수 있는 권리가 있다.)
-     * @dev 기존 루트가 관리자에서 지워지지 않고, 새 루트가 자동으로 관리자에 등록되지 않음을 유의!
-     */
-    function changeRoot(address newRoot) onlyRoot public returns (bool) {
-        require(newRoot != address(0), "This address to be set is zero address(0). Check the input address.");
-
-        root = newRoot;
-
-        emit ChangedRoot(newRoot);
-        return true;
-    }
-
-    /**
-     * @dev superOwner 교체 (root 는 root 와 superOwner 를 교체할 수 있는 권리가 있다.)
-     * @dev 기존 superOwner 가 관리자에서 지워지지 않고, 새 superOwner 가 자동으로 관리자에 등록되지 않음을 유의!
-     */
-    function changeSuperOwner(address newSuperOwner) onlyRoot public returns (bool) {
-        require(newSuperOwner != address(0), "This address to be set is zero address(0). Check the input address.");
-
-        superOwner = newSuperOwner;
-
-        emit ChangedSuperOwner(newSuperOwner);
-        return true;
-    }
-
-    /**
-     * @dev owner 들의 1/2 초과가 합의하면 superOwner 를 교체할 수 있다.
-     */
-    function changeSuperOwnerByDAO(address newSuperOwner) onlyOwner public returns (bool) {
-        require(newSuperOwner != address(0), "This address to be set is zero address(0). Check the input address.");
-        require(newSuperOwner != candidateSuperOwnerMap[msg.sender], "You have already voted for this account.");
-
-        candidateSuperOwnerMap[msg.sender] = newSuperOwner;
-
-        uint8 votingNumForSuperOwner = 0;
-        uint8 i = 0;
-
-        for (i = 0; i < ownerList.length; i++) {
-            if (candidateSuperOwnerMap[ownerList[i]] == newSuperOwner)
-                votingNumForSuperOwner++;
-        }
-
-        if (votingNumForSuperOwner > ownerList.length / 2) { // 과반수 이상이면 DAO 성립 => superOwner 교체
-            superOwner = newSuperOwner;
-
-            // 초기화
-            for (i = 0; i < ownerList.length; i++) {
-                delete candidateSuperOwnerMap[ownerList[i]];
-            }
-
-            emit ChangedSuperOwner(newSuperOwner);
-        }
-
-        return true;
-    }
-
-    function newOwner(address owner) onlySuperOwner public returns (bool) {
-        require(owner != address(0), "This address to be set is zero address(0). Check the input address.");
-        require(!owners[owner], "This address is already registered.");
-
-        owners[owner] = true;
-        ownerList.push(owner);
-
-        emit AddedNewOwner(owner);
-        return true;
-    }
-
-    function deleteOwner(address owner) onlySuperOwner public returns (bool) {
-        require(owners[owner], "This input address is not a super owner.");
-        delete owners[owner];
-
-        for (uint256 i = 0; i < ownerList.length; i++) {
-            if (ownerList[i] == owner) {
-                ownerList[i] = ownerList[ownerList.length.sub(1)];
-                ownerList.length = ownerList.length.sub(1);
-                break;
-            }
-        }
-
-        emit DeletedOwner(owner);
-        return true;
-    }
+  function renounceUserOwnership(address _newPrivileged) public privilegedOwner {
+    emit OwnershipRenounced(msg.sender, _newPrivileged);
+    privilegedUser = _newPrivileged;
+  }
+  
+  function getPrivildgedUser() public view onlyMultiOwner returns (address) {
+      return privilegedUser;
+  }
+  
+  function getOwnerOf(address _owner) public view onlyMultiOwner returns (bool) {
+      return owners[_owner];
+  }
+  
 }
 
 /**
@@ -229,367 +114,421 @@ contract IERC20 {
 
   function transferFrom(address from, address to, uint256 value)
     public returns (bool);
-  
 }
 
 /**
- * @title KStarWallet 컨트롤러
- * @dev 지갑 잠금, KRC포인트 -> KSC Deposit, 
- *      Token transfer, 
- *      이더 송금, ERC20 토큰리스트 추가, 
- *      유저 월렛 생성 및 관리, 
- *      월렛 및 컨트롤러 락기능 등
+ * @title ERC721 Non-Fungible Token Standard basic interface
+ * @dev see https://github.com/ethereum/EIPs/blob/master/EIPS/eip-721.md
+ *
+ * @dev 대체 불가능한 (Non-Fungible) 토큰 규약 ERC721 에 따른 인터페이스 선언
  */
-contract KStarWalletController {
-    
-    MultiOwnable multiOwner; // KStarCoin EOA 오너들 중 dApp용 Owner 추가 (해당 오너에게 토큰을 유저들에게 보낼 수 있도록 보유할 수 있도록 설정함)
-    mapping(address => bool) public wallets; // 생성된 지갑들에 대한 현재 상태 (true : 사용 , false : 미사용)
-    address[] public walletList; // 생성된 지갑의 리스트
-    bool public operationLocked; // 현재 Controller의 작동 상태를 관리 (true : 정지상태, false : 작동상태)
-    mapping(string => address) tokens; // 토큰 심볼별 ERC20 Address (eg. KSC -> 0x123123...., GTK -> 0x32322.... )
+contract IERC721 {
   
-    /**
-     * TokenDeposit 이벤트
-     */
-    event TokenDeposit(
-        address indexed token,
-        address spender,
-        address indexed from,
-        address indexed to,
-        uint256 amount
-    );
-    
-    /**
-     * WithdrawEtherRequest 이벤트
-     */
-    event WithdrawEtherRequest(
-        address indexed wallet,
-        address indexed to,
-        uint256 amount
-    );
-    
-    /**
-     * WithdrawTokenRequest 이벤트
-     */
-    event WithdrawTokenRequest(
-        address indexed token,
-        address indexed wallet,
-        address indexed to,
-        uint256 amount
-    );
+  bytes4 private constant InterfaceId_ERC721 = 0x80ac58cd;
 
-    /**
-     * 전체 지갑 락 기능과 KStarCoin MultiOwnable 실행 권한 체크
-     */
-    modifier isValidAndOwner() {
-        require(multiOwner.owners(msg.sender), "Only the owner can execute.");
-        require(!operationLocked, "This controller is stopped.");
-        _;
-    }
-    
-    /**
-     * 지갑 주소가 Zero Address 인지 체크
-     */
-    modifier walletIsNotZeroAddress(address _wallet) {
-        require(_wallet != address(0), 'The wallet address cannot be a 0 address.');
-        _;
-    }
-    
-    /**
-     * 토큰이 존재하는 토큰인지 체크
-     */
-    modifier tokenIsNotZeroAddress(string _tokenSymbol) {
-        require(tokens[_tokenSymbol] != address(0), 'The token address cannot be a 0 address.');
-        _;
-    }
-    
-    /**
-     * constructor 생성자
-     *  전체 지갑 락 기능과 KStarCoin MultiOwnable 실행 권한 체크를 위해 KStarCoin 을 MultiOwnable 로 형변환
-     */
-    constructor(string _tokenSymbol, IERC20 _kStarToken) public {
-        operationLocked = false;
-        multiOwner = MultiOwnable(_kStarToken);
-        addToken(_tokenSymbol, _kStarToken);
-    }
-    
+  bytes4 private constant InterfaceId_ERC721Exists = 0x4f558e79;
 
-    /**
-     * KStarCoin 생태계에서 다른 토큰 지원을 위해 토큰을 추가하는 함수 
-     */
-    function addToken(
-        string _tokenSymbol, 
-        IERC20 _token
-    )
-        public
-        isValidAndOwner 
-        returns
-        (bool)
-    {
-        tokens[_tokenSymbol] = _token;
-        return true;
-    }
-    
-    /**
-     * 토큰 업그레이드시 업그레이드 된 ERC20 컨트랙트로 업데이트 하기 위한 함수
-     */
-    function upgradeToken(
-        string _tokenSymbol, 
-        address _tokenNewAddr
-    )
-        public
-        isValidAndOwner
-        tokenIsNotZeroAddress(_tokenSymbol)
-        returns
-        (bool)
-    {
-        require(_tokenNewAddr != address(0), 'The new token address cannot be a 0 address.');
-        
-        tokens[_tokenSymbol] = _tokenNewAddr;
-        return true;
-    }
-    
-    /**
-     * 현재 Controller 가 새로운 주소로 전환 시 기존 유저 지갑을 새로운 Controller를 바라보게 함.. (유저들 지갑에 Owner를 바꿈..)
-     **/
-    function controllerChange(
-        address _newFactory
-    ) 
-        public 
-        isValidAndOwner 
-        returns 
-        (bool) 
-    {
-        uint loop;
-        for(loop = 0; loop < walletList.length; loop++){
-            if(wallets[walletList[loop]]){
-                KStarWallet(walletList[loop]).transferOwnership(_newFactory);
-            }
-        }
-        
-        return true;
-    }
+  function balanceOf(address _owner) public view returns (uint256 _balance);
 
-    /**
-     * KStarLive 지갑을 생성해주는 함수
-     */
-    function createWallet() public isValidAndOwner returns (address) {
-        KStarWallet wallet = new KStarWallet();
-        
-        wallets[wallet] = true;
-        walletList.push(wallet);
-        
-        return wallet;
-    }
-    
-    /**
-     * 유저 월렛별 lock/unlock 기능
-     */
-    function lockWallet(
-        address _wallet, 
-        bool _lock
-    ) 
-        public
-        isValidAndOwner
-        walletIsNotZeroAddress(_wallet)
-        returns
-        (bool)
-    {
-        wallets[_wallet] = _lock;
-        return true;
-    }
-    
-    /**
-     *  현재 Controller의 일부 기능을 잠그기 위한 함수
-     */
-    function operationChange(
-        bool _val
-    ) 
-        public 
-        isValidAndOwner 
-        returns 
-        (bool)
-    {
-       operationLocked = _val;
-       
-       return true;
-    }
-   
-    /**
-     *  유저 컨트랙트 지갑의 이더 보유량
-     */
-    function balanceOfEther(
-       address _wallet
-    )
-        public
-        view
-        walletIsNotZeroAddress(_wallet)
-        returns
-        (uint256)
-    {
-       return address(_wallet).balance;
-    }
+  function ownerOf(uint256 _tokenId) public view returns (address _owner);
+  
+  function exists(uint256 _tokenId) public view returns (bool _exists);
 
-    /**
-     *  유저 컨트랙트 지갑의 토큰 보유량
-     */
-    function balanceOfToken(
-       string _symbol, 
-       address _wallet
-    ) 
-        public 
-        view 
-        tokenIsNotZeroAddress(_symbol)
-        walletIsNotZeroAddress(_wallet)
-        returns 
-        (uint256) 
-    {
-       return IERC20(tokens[_symbol]).balanceOf(_wallet);
-    }
+  function approve(address _to, uint256 _tokenId) public;
+
+  function getApproved(uint256 _tokenId)
+    public view returns (address _operator);
+
+  function setApprovalForAll(address _operator, bool _approved) public;
+
+  // _owner 의 모든 토큰에 대한 접근 권한이 _operator 에게 있는지를 체크
+  function isApprovedForAll(address _owner, address _operator)
+    public view returns (bool);
+
+ // 본인의 혹은 접근 가능한 _tokenId 토큰을 _from 에서 _to 로 넘김
+  function transferFrom(address _from, address _to, uint256 _tokenId) public;
+
+  // _to 가 콘트랙트 주소인 경우에는 ERC721Receiver 의 onERC721Received 함수가 존재하는지를 체크한 후에 토큰을 넘김.
+  function safeTransferFrom(address _from, address _to, uint256 _tokenId)
+    public;
     
-   /**
-    * 포탈에서 KRC -> KSC 산정후 수량을 유저 지갑에 넣기 위한 함수 
-    **/
-   function tokenDeposit(
-        string _symbol, 
-        address _from,
-        address _wallet,
-        uint256 _amount
-    ) 
-        public
-        isValidAndOwner
-        tokenIsNotZeroAddress(_symbol)
-        walletIsNotZeroAddress(_wallet)
-        returns 
-        (bool ret)
-    {
-        ret = IERC20(tokens[_symbol]).transferFrom(_from, _wallet, _amount);
-        emit TokenDeposit(tokens[_symbol], msg.sender, _from, _wallet, _amount);
-        return ret;
-    }
-    
-    /**
-     * 유저의 지갑에 보유한 ERC20 토큰을 다른 내/외부 지갑 주소로 Transfer 하기 위한 call 함수 
-     */
-    function withdrawTokenRequest(
-        string _symbol,
-        address _to,
-        address _wallet,
-        uint256 _amount
-    )
-        public
-        isValidAndOwner
-        tokenIsNotZeroAddress(_symbol)
-        walletIsNotZeroAddress(_wallet)
-        returns
-        (bool ret)
-    {
-        ret = KStarWallet(_wallet).withdrawToken(tokens[_symbol], _to, _amount);
-        emit WithdrawTokenRequest(tokens[_symbol], _wallet, _to, _amount);  
-        return ret;
-    }
-    
-    /**
-     * 유저의 지갑에 보유한 이더를 다른 내/외부 지갑 주소로 Transfer 하기 위한 call 함수 
-     */
-    function withdrawEtherRequest(
-        address _wallet,
-        address _to,
-        uint256 _amount
-    ) public isValidAndOwner returns (bool ret) {
-        ret = KStarWallet(_wallet).withdrawEther(_to, _amount);
-        emit WithdrawEtherRequest(_wallet, _to, _amount);
-        return ret;
-    }
-    
-    /**
-     * 유저 지갑에 보유한 토큰별 수량을 알기 위한 밸런스 체크 함수 
-     */
-    function tokenBalance(
-        string _symbol,
-        address _wallet
-    )
-        public
-        view
-        tokenIsNotZeroAddress(_symbol)
-        walletIsNotZeroAddress(_wallet)
-        returns
-        (uint256)
-    {
-        return IERC20(tokens[_symbol]).balanceOf(_wallet);
-    }
-   
-    /**
-     * 유저별 컨트랙트 지갑의 존재여부
-     */
-    function existWallet(
-       address _wallet
-    ) 
-        public 
-        view
-        walletIsNotZeroAddress(_wallet)
-        returns 
-        (bool) 
-    {
-       return wallets[_wallet];
-    }
-   
-    /**
-     * 토큰 Address를 가져오기 위한 함수
-     */
-    function getTokenInfo(
-        string _symbol
-    ) 
-        public 
-        view 
-        tokenIsNotZeroAddress(_symbol)
-        returns 
-        (address) 
-    {
-       return tokens[_symbol];
-    }
+  function safeTransferFrom(address _from, address _to, uint256 _tokenId, bytes _data)
+    public;
 }
+
+
+/**
+ * @title ERC165
+ * @dev https://github.com/ethereum/EIPs/blob/master/EIPS/eip-165.md
+ */
+interface ERC165 {
+
+  /**
+   * @notice Query if a contract implements an interface
+   * @param _interfaceId The interface identifier, as specified in ERC-165
+   * @dev Interface identification is specified in ERC-165. This function
+   * @dev  uses less than 30,000 gas.
+   */
+  function supportsInterface(bytes4 _interfaceId)
+    external
+    view
+    returns (bool);
+}
+
+/**
+ * @title SupportsInterfaceWithLookup
+ * @author Matt Condon (@shrugs)
+ * @dev Implements ERC165 using a lookup table.
+ */
+contract SupportsInterfaceWithLookup is ERC165 {
+
+  bytes4 public constant InterfaceId_ERC165 = 0x01ffc9a7;
+  /**
+   * 0x01ffc9a7 ===
+   *   bytes4(keccak256('supportsInterface(bytes4)'))
+   */
+
+  /**
+   * @dev a mapping of interface id to whether or not it's supported
+   */
+  mapping(bytes4 => bool) internal supportedInterfaces;
+
+  /**
+   * @dev A contract implementing SupportsInterfaceWithLookup
+   * @dev  implement ERC165 itself
+   */
+  constructor()
+    public
+  {
+    _registerInterface(InterfaceId_ERC165);
+  }
+
+  /**
+   * @dev implement supportsInterface(bytes4) using a lookup table
+   */
+  function supportsInterface(bytes4 _interfaceId)
+    external
+    view
+    returns (bool)
+  {
+    return supportedInterfaces[_interfaceId];
+  }
+
+  /**
+   * @dev private method for registering an interface
+   */
+  function _registerInterface(bytes4 _interfaceId)
+    internal
+  {
+    require(_interfaceId != 0xffffffff);
+    supportedInterfaces[_interfaceId] = true;
+  }
+  
+}
+
+contract WalletEvent {
+    
+    event KswErc20Transfer(
+        address _token,
+        address indexed _from,
+        address indexed _to,
+        uint256 _amount
+    );
+    
+    event KswErc20TransferFrom(
+        address _token,
+        address indexed _spender,
+        address indexed _from,
+        address indexed _to,
+        uint256 _amount
+    );
+    
+    event KswErc20Approve(
+        address _token,
+        address indexed _from,
+        address indexed _spender,
+        uint256 _amount
+    );
+    
+    event KswApproveToken721(
+        address _token,
+        address indexed _owner,
+        address indexed _approved,
+        uint256 indexed _tokenId
+    );
+    
+    event KswApprovalForAllToken721(
+        address _token,
+        address indexed _owner,
+        address indexed _operator,
+        bool _approved
+    );
+    
+    event KswTransferToken721From(
+        address _token,
+        address indexed _spender,
+        address indexed _from,
+        address indexed _to,
+        uint256 _tokenId
+    );
+    
+    event KswSafeTransferToken721From(
+        address _token,
+        address indexed _spender,
+        address indexed _from,
+        address indexed _to,
+        uint256 _tokenId,
+        bytes _data
+    );
+}
+
 
 /**
  * KStarLive Wallet 유저별 지갑
- * 유저별 토큰 지갑 실제로 실행은 Controller에서 실행하고 Owner의 권한은 Controller의 Address 임
  */
-contract KStarWallet is Ownable {
+contract KStarWallet is MultiOwnable, WalletEvent, SupportsInterfaceWithLookup {
    
-   using SafeMath for uint256;
+    using SafeMath for uint256;
+    
+    bytes4 private constant InterfaceId_ERC721 = 0x80ac58cd;
+    bytes4 private constant InterfaceId_ERC721Exists = 0x4f558e79;
    
-    /**
-     *  유저 컨트랙트 지갑의 이더 보유량
-     */
-    function balanceOfEther() public view returns (uint256) {
-        return address(this).balance;
+    constructor () public {
+       owners[msg.sender] = true;
+       
+       _registerInterface(InterfaceId_ERC721);
+       _registerInterface(InterfaceId_ERC721Exists);
     }
-
+   
     /**
-     * 토큰을 외/내부 지갑으로 이동하기 위한 함수 Controller를 통해서만 접근 가능함
+     * 토큰을 외/내부 지갑으로 이동하기 위한 함수
      */  
-    function withdrawToken(
+    function kswToken20Transfer(
         address _token,
         address _to,
         uint256 _amount
     ) 
         public 
-        onlyOwner 
+        privilegedOwner 
         returns 
-        (bool) 
+        (bool retVal) 
     {
-        return IERC20(_token).transfer(_to, _amount);
+        retVal = IERC20(_token).transfer(_to, _amount);
+        emit KswErc20Transfer(_token, address(this), _to, _amount);
+        return retVal;
+    }
+    
+    function kswToken20Approve(
+        address _token,
+        address _spender,
+        uint256 _amount
+    ) 
+        public 
+        privilegedOwner 
+        returns 
+        (bool retVal) 
+    {
+        retVal = IERC20(_token).approve(_spender, _amount);
+        emit KswErc20Approve(_token, address(this), _spender, _amount);
+        return retVal;
+    }
+    
+    function kswToken20TransferFrom(
+        address _token,
+        address _owner,
+        address _to,
+        uint256 _amount
+    )
+        public
+        privilegedOwner
+        returns
+        (bool retVal)
+    {
+        retVal = IERC20(_token).transferFrom(address(_owner), address(_to), _amount);
+        emit KswErc20TransferFrom(_token, address(this), address(_owner), address(_to), _amount);
+        return retVal;
+    }
+    
+    function kswTotalSupplyOfToken20(
+        address _token
+    ) 
+        public 
+        view 
+        returns 
+        (uint256) 
+    {
+        return IERC20(_token).totalSupply();    
+    }
+    
+    function kswAllowanceOfToken20(
+        address _token,
+        address _from,
+        address _spender
+    )
+        public
+        view
+        returns
+        (uint256)
+    {
+        return IERC20(_token).allowance(_from, _spender);
+    }
+    
+    function kswBalanceOfToken20(
+        address _token
+    ) 
+        public
+        view
+        returns
+        (uint256)
+    {
+        return IERC20(_token).balanceOf(address(this));
+    }
+    
+    function kswBalanceOfToken721(
+        address _token
+    )
+        public
+        view
+        returns
+        (uint256)
+    {
+        return IERC721(_token).balanceOf(address(this));
+    }
+    
+    function kswOwnerOfToken721(
+        address _token,
+        uint256 _tokenId
+    ) 
+        public 
+        view 
+        returns 
+        (address)
+    {
+        return IERC721(_token).ownerOf(_tokenId);
+    }
+    
+    function kswExistsToken721(
+        address _token,
+        uint256 _tokenId
+    )
+        public
+        view
+        returns
+        (bool)
+    {
+        return IERC721(_token).exists(_tokenId);        
+    }
+    
+    function kswApproveToken721(
+        address _token,
+        address _to,
+        uint256 _tokenId
+    ) 
+        public 
+        privilegedOwner
+        returns
+        (bool)
+    {
+        IERC721(_token).approve(_to, _tokenId);
+        emit KswApproveToken721(_token, address(this), address(_to), _tokenId);
+        return true;
+    }
+    
+    function kswGetApprovedForToken721(
+        address _token,
+        uint256 _tokenId
+    )
+        public
+        view
+        returns
+        (address)
+    {
+        return IERC721(_token).getApproved(_tokenId);
+    }
+    
+    function kswSetApprovalForAllToken721(
+        address _token,
+        address _operator,
+        bool _approved
+    ) 
+        public
+        privilegedOwner
+        returns
+        (bool)
+    {
+        IERC721(_token).setApprovalForAll(_operator, _approved);
+        emit KswApprovalForAllToken721(_token, address(this), address(_operator), _approved);
+        return true;
+    }
+    
+    function kswIsApprovedForAllToken721(
+        address _token,
+        address _operator
+    )
+        public
+        view
+        returns
+        (bool)
+    {
+        return IERC721(_token).isApprovedForAll(address(this), _operator);
+    }
+    
+    function kswTransferToken721From(
+        address _token,
+        address _owner,
+        address _to,
+        uint256 _tokenId
+    )
+        public
+        privilegedOwner
+        returns
+        (bool)
+    {
+        IERC721(_token).transferFrom(_owner, _to, _tokenId);
+        emit KswTransferToken721From(_token, address(this), _owner, address(_to), _tokenId);
+        return true;
+    }
+    
+    function kswSafeTransferToken721From(
+        address _token,
+        address _owner,
+        address _to,
+        uint256 _tokenId,
+        bytes _data
+    ) 
+        public
+        privilegedOwner
+        returns
+        (bool)
+    {
+        IERC721(_token).safeTransferFrom(_owner, _to, _tokenId, _data);
+        emit KswSafeTransferToken721From(_token, address(this), _owner, address(_to), _tokenId, _data);
+        return true;
+    }
+    
+    /**
+     * 이더를 입금하기 위한 fallback 함수 
+     */  
+    function () public payable {
+        require(msg.value > 0);
     }
 
     /**
-     * 이더를 외/내부 지갑으로 이동하기 위한 함수 Controller를 통해서만 접근 가능함
+     *  유저 컨트랙트 지갑의 이더 보유량
+     */
+    function kswBalanceOfEther() public view returns (uint256) {
+        return address(this).balance;
+    }
+
+    /**
+     * 이더를 외/내부 지갑으로 이동하기 위한 함수
      */  
-    function withdrawEther(
+    function kswEtherTransfer(
         address _to,
         uint256 _amount
     ) 
         public 
-        onlyOwner 
+        privilegedOwner
         returns 
         (bool) 
     {
@@ -600,12 +539,5 @@ contract KStarWallet is Ownable {
         
         return true;
     }
-    
-    /**
-     * 이더를 입금하기 위한 fallback 함수 Controller를 통해서만 접근 가능함
-     */  
-    function () public payable {
-        require(msg.value > 0);
-    }
-   
+
 }
