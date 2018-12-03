@@ -4,12 +4,12 @@
 const express = require('express');
 const router = express.Router();
 
-const KStarWalletController = require('../controllers/kStarWalletController.js');
-const controller = new KStarWalletController();
+const KStarWallet = require('../controllers/kStarWallet.js');
+const wallet = new KStarWallet();
 
 /**
  * KStarWallet Compile 
  */
-router.post('/compile', controller.compile);
+router.post('/compile', wallet.compile);
 
 module.exports = router;
